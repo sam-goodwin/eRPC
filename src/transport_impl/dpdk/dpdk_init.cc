@@ -8,6 +8,7 @@
 
 #include "dpdk_externs.h"
 #include "dpdk_transport.h"
+#include <rte_version.h>
 
 namespace erpc {
 
@@ -52,17 +53,34 @@ void DpdkTransport::setup_phy_port(uint16_t phy_port, size_t numa_node,
   memset(&eth_conf, 0, sizeof(eth_conf));
 
   if (!kIsWindows) {
+    #ifdef RTE_ETH_LINK_UP
+    eth_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
+    #else
     eth_conf.rxmode.mq_mode = ETH_MQ_RX_RSS;
+    #endif
     eth_conf.lpbk_mode = 1;
     eth_conf.rx_adv_conf.rss_conf.rss_key =
         const_cast<uint8_t *>(kDefaultRssKey);
     eth_conf.rx_adv_conf.rss_conf.rss_key_len = 40;
+    #ifdef RTE_ETH_RSS_UDP
+    eth_conf.rx_adv_conf.rss_conf.rss_hf = RTE_ETH_RSS_UDP;
+    #else
     eth_conf.rx_adv_conf.rss_conf.rss_hf = ETH_RSS_UDP;
+    #endif
   } else {
+    #if RTE_VERSION >= RTE_VERSION_NUM(20, 11, 0, 0)
+    eth_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_NONE;
+    #else
     eth_conf.rxmode.mq_mode = ETH_MQ_RX_NONE;
+    #endif
   }
 
+  #if RTE_VERSION >= RTE_VERSION_NUM(20, 11, 0, 0)
+  eth_conf.txmode.mq_mode = RTE_ETH_MQ_TX_NONE;
+  #else
   eth_conf.txmode.mq_mode = ETH_MQ_TX_NONE;
+  #endif
+
   eth_conf.txmode.offloads = kOffloads;
 
   int ret = rte_eth_dev_configure(phy_port, kMaxQueuesPerPort,
