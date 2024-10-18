@@ -8,6 +8,8 @@
 #include <numeric>
 #include <vector>
 #include "common.h"
+#include <climits>
+#include <cassert>
 
 namespace erpc {
 
@@ -30,13 +32,22 @@ static inline size_t lsb_index(int x) {
   return static_cast<size_t>(__builtin_ffs(x));
 }
 
+
 /// Return the index of the most significant bit of x. The index of the 2^0
 /// bit is 1. (x = 0 returns 0, x = 1 returns 1.)
 static inline size_t msb_index(int x) {
-  assert(x < INT32_MAX / 2);
-  int index;
-  asm("bsrl %1, %0" : "=r"(index) : "r"(x << 1));
-  return static_cast<size_t>(index);
+  assert(x < INT32_MAX / 2 && x > 0); // Ensure x is positive and within range
+
+  #if defined(__x86_64__) || defined(__i386__)
+    int index;
+    asm("bsrl %1, %0" : "=r"(index) : "r"(x << 1));
+    return static_cast<size_t>(index);
+  #else
+    // Fallback to a portable implementation
+    unsigned int shifted = static_cast<unsigned int>(x) << 1;
+    return static_cast<size_t>((sizeof(unsigned int) * CHAR_BIT - 1) - 
+           static_cast<unsigned int>(__builtin_clz(shifted)));
+  #endif
 }
 
 /// C++11 constexpr ceil
